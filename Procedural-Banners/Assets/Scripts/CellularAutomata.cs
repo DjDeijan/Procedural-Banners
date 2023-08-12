@@ -16,16 +16,7 @@ public class CellularAutomata : MonoBehaviour
     Texture2D texture;
     [SerializeField]
     SpriteRenderer sr;
-
-    [SerializeField]
-    Vector3 a;
-    [SerializeField]
-    Vector3 b;
-    [SerializeField]
-    Vector3 c;
-    [SerializeField]
-    Vector3 d;
-
+    
     [SerializeField]
     float scale;
     [SerializeField]
@@ -38,24 +29,16 @@ public class CellularAutomata : MonoBehaviour
     float lacunarity;
     
     [SerializeField]
-    Color co;
-
-    [SerializeField]
-    [Range(0, 1)]
-    float paletteRange;
-    [SerializeField]
-    [Range(0, 1)]
-    float paletteCycle;
-
-    [SerializeField]
-    bool random;
+    bool random;    
 
     public enum ColorRelation
     {
         Analogous,
         Complementary,
         Triad,
-        Tetrad
+        Tetrad,
+        Black,
+        White
     }
 
     [SerializeField]
@@ -70,7 +53,8 @@ public class CellularAutomata : MonoBehaviour
 
     float h, s, v;
     int startY;
-    Vector3 color;
+    [SerializeField]
+    Color color;
 
     [SerializeField]
     uint fullSeed;
@@ -79,8 +63,7 @@ public class CellularAutomata : MonoBehaviour
     {
         if (random)
         {
-            d = new Vector3(Random.Range(0, 1f), Random.Range(0, 1f), Random.Range(0, 1f));
-            paletteCycle = Random.Range(0, 1f);
+            color = Random.ColorHSV();
         }
 
         textureColors = new NativeArray<Color>(height * halfWidth * 2, Allocator.Persistent);
@@ -88,31 +71,7 @@ public class CellularAutomata : MonoBehaviour
         texture.Reinitialize(halfWidth * 2, height);
 
         colors = new NativeArray<Color>(halfWidth * 2 * height, Allocator.Persistent);
-
-        float t = paletteRange / 2 + paletteCycle;
-
-        color = a + Vector3.Scale(b, new Vector3(Mathf.Cos(2 * Mathf.PI * (c.x * t + d.x)), Mathf.Cos(2 * Mathf.PI * (c.y * t + d.y)), Mathf.Cos(2 * Mathf.PI * (c.z * t + d.z))));
         
-        Color.RGBToHSV(new Color(color.x, color.y, color.z), out h, out s, out v);
-
-        switch (colorRelation)
-        {
-            case ColorRelation.Analogous:
-                h = (h + (float)30 / 360 * Random.Range(1, 3)) % 1;
-                break;
-            case ColorRelation.Complementary:
-                h = (h + 0.5f) % 1;
-                break;
-            case ColorRelation.Triad:
-                h = (h + (float)120 / 360 * Random.Range(1, 3)) % 1;
-                break;
-            case ColorRelation.Tetrad:
-                h = (h + (float)90 / 360 * Random.Range(1, 4)) % 1;
-                break;
-        }
-
-        v += (0.5f - v) * 1.8f;
-
         noise = new NativeArray<float>(height * halfWidth * 2, Allocator.Persistent);
 
         pNoise = Noise.GenerateNoiseMap(halfWidth * 2, height, Random.Range(int.MinValue, int.MaxValue), scale, octaves, persistance, lacunarity, Vector2.zero);
@@ -124,10 +83,10 @@ public class CellularAutomata : MonoBehaviour
                 noise[x + y * halfWidth * 2] = pNoise[x, y];
             }
         }
-
+        
         for (int i = 0; i < colors.Length; i++)
         {
-            colors[i] = Color.HSVToRGB(h, s, v);
+            colors[i] = color;
         }
 
         flagArr = new NativeArray<bool>(height * halfWidth * 2, Allocator.Persistent);
@@ -136,14 +95,16 @@ public class CellularAutomata : MonoBehaviour
             flagArr[i] = true;
         }
 
-        CreateSprite(6000, true, new Vector2Int(halfWidth - 1, height - 2), new NativeArray<int>(3, Allocator.Persistent) { [0] = 6, [1] = 7, [2] = 8 }, new NativeArray<int>(8, Allocator.Persistent) { [0] = 1, [1] = 2, [2] = 3, [3] = 4, [4] = 5, [5] = 6, [6] = 7, [7] = 8 }, colors, flagArr, 20, true, true);
+        CreateSprite(7000, true, new Vector2Int(1, height - 2), new NativeArray<int>(4, Allocator.Persistent) { [0] = 5, [1] = 6, [2] = 7, [3] = 8 }, new NativeArray<int>(8, Allocator.Persistent) { [0] = 1, [1] = 2, [2] = 3, [3] = 4, [4] = 5, [5] = 6, [6] = 7, [7] = 8 }, colors, flagArr, 20, true, true);
     }
 
     public void Pattern()
     {
+        Color.RGBToHSV(color, out h, out s, out v);
+
         for (int i = 0; i < colors.Length; i++)
         {
-            colors[i] = Color.HSVToRGB(h, s, v > 0.5f ? v - 0.05f : v + 0.05f);
+            colors[i] = Color.HSVToRGB(h, s, v > 0.5f ? v - 0.03f : v + 0.03f);
         }
 
         CreateSprite(500, false, new Vector2Int(halfWidth - 1, startY), new NativeArray<int>(1, Allocator.Persistent) { [0] = 3 }, new NativeArray<int>(5, Allocator.Persistent) { [0] = 1, [1] = 2, [2] = 3, [3] = 4 }, colors, flagArr, 100, false, false);
@@ -161,17 +122,39 @@ public class CellularAutomata : MonoBehaviour
                 noise[halfWidth * 2 - 1 - x + y * halfWidth * 2] = pNoise[x, y];
             }
         }
+        
+        v = v > 0.7f ? v - 0.3f : v + 0.3f;
+        s = s > 0.7f ? s - 0.3f : s + 0.3f;
+
+        switch (colorRelation)
+        {
+            case ColorRelation.Analogous:
+                h = (h + (float)30 / 360 * (Random.Range(0, 2) * 2 - 1)) % 1;
+                break;
+            case ColorRelation.Complementary:
+                h = (h + 0.5f) % 1;
+                break;
+            case ColorRelation.Triad:
+                h = (h + (float)120 / 360 * Random.Range(1, 3)) % 1;
+                break;
+            case ColorRelation.Tetrad:
+                h = (h + (float)90 / 360 * Random.Range(1, 4)) % 1;
+                break;
+            case ColorRelation.Black:
+                v = 0.1f;
+                s = 0;
+                break;
+            case ColorRelation.White:
+                v = 1;
+                s = 0;
+                break;
+        }
 
         var paletteJob = new PaletteJob()
         {
             noise = noise,
             colors = colors,
-            paletteRange = paletteRange,
-            paletteCycle = paletteCycle,
-            a = a,
-            b = b,
-            c = c,
-            d = d
+            color = Color.HSVToRGB(h, s, v)
         };
 
         var handler = paletteJob.Schedule(colors.Length, 32);
@@ -179,7 +162,7 @@ public class CellularAutomata : MonoBehaviour
 
         fullArr.Dispose();
 
-        CreateSprite(150, true, new Vector2Int(halfWidth - 1, startY), new NativeArray<int>(3, Allocator.Persistent) { [0] = 6, [1] = 7, [2] = 8 }, new NativeArray<int>(8, Allocator.Persistent) { [0] = 1, [1] = 2, [2] = 3, [3] = 4, [4] = 5, [5] = 6, [6] = 7, [7] = 8 }, colors, flagArr, 5, true, true);
+        CreateSprite(150, true, new Vector2Int(halfWidth - 1, startY), new NativeArray<int>(4, Allocator.Persistent) { [0] = 6, [1] = 7, [2] = 8, [3] = 5 }, new NativeArray<int>(8, Allocator.Persistent) { [0] = 1, [1] = 2, [2] = 3, [3] = 4, [4] = 5, [5] = 6, [6] = 7, [7] = 8 }, colors, flagArr, 5, false, true);
     }
 
     public void CreateBanner()
@@ -228,7 +211,7 @@ public class CellularAutomata : MonoBehaviour
 
         texture.Apply();
 
-        sr.sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), Vector2.zero);
+        sr.sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 1));
     }
 
     public void CreateSprite(int walkIterations, bool finiteEdges, Vector2Int startPos, NativeArray<int> birthRules, NativeArray<int> surviveRules, NativeArray<Color> colors, NativeArray<bool> flagArr, int iterations, bool outline, bool symmetry)
@@ -294,7 +277,6 @@ public class CellularAutomata : MonoBehaviour
             arr = fullArr,
             textureColors = textureColors,
             colors = colors,
-            noise = noise,
             outline = outline,
             width = halfWidth * 2,
             height = height
@@ -312,21 +294,21 @@ public class CellularAutomata : MonoBehaviour
         [WriteOnly]
         public NativeArray<Color> colors;
 
-        public float paletteRange;
-        public float paletteCycle;
-
-        public Vector3 a;
-        public Vector3 b;
-        public Vector3 c;
-        public Vector3 d;
+        public Color color;
 
         public void Execute(int index)
         {
-            float t = noise[index] * paletteRange + paletteCycle;
-            
-            Vector3 color = a + Vector3.Scale(b, new Vector3(Mathf.Cos(2 * Mathf.PI * (c.x * t + d.x)), Mathf.Cos(2 * Mathf.PI * (c.y * t + d.y)), Mathf.Cos(2 * Mathf.PI * (c.z * t + d.z))));
+            //float t = noise[index] * paletteRange + paletteCycle;
 
-            colors[index] = new Color(color.x, color.y, color.z);
+            //Vector3 color = a + Vector3.Scale(b, new Vector3(Mathf.Cos(2 * Mathf.PI * (c.x * t + d.x)), Mathf.Cos(2 * Mathf.PI * (c.y * t + d.y)), Mathf.Cos(2 * Mathf.PI * (c.z * t + d.z))));
+
+            //colors[index] = new Color(color.x, color.y, color.z);
+
+            float h, s, v;
+
+            Color.RGBToHSV(color, out h, out s, out v);
+
+            colors[index] = Color.HSVToRGB(h, s, v);
         }
     }
 
@@ -340,8 +322,6 @@ public class CellularAutomata : MonoBehaviour
         public NativeArray<Color> textureColors;
         [ReadOnly]
         public NativeArray<Color> colors;
-        [ReadOnly]
-        public NativeArray<float> noise;
         public bool outline;
         public int width;
         public int height;
@@ -353,22 +333,55 @@ public class CellularAutomata : MonoBehaviour
             int curCol = index % width;
             
             Color.RGBToHSV(colors[index], out h, out s, out v);
-
-            //v -= -downNeigh[index] / (21 / 0.4f) + upNeigh[index] / (21 / 0.4f);
-            v -= Mathf.Floor(3 - ((float)curRow / (height - 1) * 3 * 3 + noise[index] * 3) / 4) / 3 * v * 0.2f;
-            s += Mathf.Floor(3 - ((float)curRow / (height - 1) * 3 * 3 + noise[index] * 3) / 4) / 3 * s * 0.2f; ;
-
-            v -= Mathf.Round(Mathf.Cos((float)curCol / (width - 1) * Mathf.PI * 2 * 4) + 1) / 2 * v * 0.2f;
-            s += Mathf.Round(Mathf.Cos((float)curCol / (width - 1) * Mathf.PI * 2 * 4) + 1) / 2 * s * 0.2f;
+            
+            v -= Mathf.Round(Mathf.Cos((float)curCol / (width - 1) * Mathf.PI * 2 * 4) + 1) / 2 * v * 0.1f;
+            s += Mathf.Round(Mathf.Cos((float)curCol / (width - 1) * Mathf.PI * 2 * 4) + 1) / 2 * s * 0.1f;
+            float blue = Mathf.Round(Mathf.Cos((float)curCol / (width - 1) * Mathf.PI * 2 * 4) + 1) / 2 * 0.02f;
+            h = Mathf.Abs(h - 0.67f) < h + 0.33f ? (h + blue) % 1 : (h - blue) % 1;
 
             if (arr[index])
-                textureColors[index] = Color.HSVToRGB(h, s, v) + new Color(0, 0, Mathf.Floor(3 - ((float)curRow / (height - 1) * 3 * 3 + noise[index] * 3) / 4) / 3 * 0.02f + Mathf.Round(Mathf.Cos((float)curCol / (width - 1) * Mathf.PI * 2 * 4) + 1) / 2 * 0.02f);
+                textureColors[index] = Color.HSVToRGB(h, s, v);
 
             else if (outline)
             {
                 if (arr[(curCol - 1 >= 0 ? curCol - 1 : 0) + curRow * width] || arr[(curCol + 1 < width ? curCol + 1 : width - 1) + curRow * width] || arr[curCol + (curRow - 1 >= 0 ? curRow - 1 : 0) * width] || arr[curCol + (curRow + 1 < height ? curRow + 1 : height - 1) * width])
                     textureColors[index] = Color.black;
             }
+        }
+    }
+
+    [BurstCompile]
+    public struct CountNeighbours : IJobParallelFor
+    {
+        [ReadOnly]
+        public NativeArray<bool> arr;
+        [WriteOnly]
+        public NativeArray<int> upNeighs;
+        [WriteOnly]
+        public NativeArray<int> downNeighs;
+        public int width;
+        public int height;
+
+        public void Execute(int index)
+        {
+            int upNeigh = 0;
+            int downNeigh = 0;
+            int curRow = index / width;
+            int curCol = index % width;
+            
+            for (int x = curCol - 1; x < curCol + 2; x++)
+            {
+                if (arr[x + (curRow + 1) * width])
+                    upNeigh++;
+            }
+            upNeighs[index] = upNeigh;
+
+            for (int x = curCol - 1; x < curCol + 2; x++)
+            {
+                if (arr[x + (curRow - 1) * width])
+                    downNeigh++;
+            }
+            downNeighs[index] = downNeigh;
         }
     }
 
